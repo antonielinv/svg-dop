@@ -178,6 +178,15 @@ textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:1
 /* botão Início do topo: bem visível */
 #bHome{flex:0 0 auto;background:#fff;color:var(--navy);border:0;border-radius:12px;padding:9px 14px;font-size:15px;font-weight:800;box-shadow:0 2px 6px rgba(0,0,0,.25);white-space:nowrap}
 #bHome:active{transform:scale(.97)}
+/* telefone do comandante */
+.telbox{flex:1 1 100%;display:flex;align-items:center;border:1px solid var(--line);border-radius:9px;padding:0 8px;gap:4px;min-width:0}
+.telbox input{border:0;outline:0;width:100%;padding:9px 0;font-size:14.5px;font-weight:600;min-width:0}
+.tf{flex-wrap:wrap}
+.ftel{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13.5px}
+.ftel .nm{flex:1 1 100%;font-weight:700;color:var(--navy)}
+.tbt{display:inline-flex;align-items:center;gap:6px;border-radius:10px;padding:9px 12px;font-weight:800;font-size:14px;text-decoration:none;color:#fff}
+.tbt.lig{background:#1d4f91}.tbt.wa{background:#128c4a}
+.ftel input{flex:1;min-width:0;border:1px solid var(--line);border-radius:9px;padding:9px;font-size:14.5px}
 /* tela inicial do serviço */
 .nums{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .nums div{background:#fff;border:1px solid var(--line);border-radius:12px;padding:8px 4px;text-align:center}
@@ -574,6 +583,17 @@ function linhasHist(e){ // texto do histórico, na ordem em que aconteceu
     ? `🔁 ${hFmt(x.h)} Remanejada → ${limpaLoc(x.para)||'?'}${(x.motivo||'').trim()?' – Motivo: '+x.motivo.trim():''}`
     : `✓ ${hFmt(x.h)} Fiscalizada${(x.obs||'').trim()?' – '+x.obs.trim():''}`); }
 function linhaPonto(e){ const ini=pontoIni(e); if(!ini) return '📍 Local não informado'; return '📍 '+ini+(remsEq(e).length?' (ponto inicial)':''); }
+// telefone do comandante da equipe (fica só no aparelho; lembrado pela matrícula do CMT)
+const soDig=t=>(t||'').replace(/\D/g,'');
+const telsMem=()=>LS.get('dp_tels')||{};
+function lembrarTel(mat,tel){ if(!mat||soDig(tel).length<10) return; const m=telsMem(); m[mat]=tel.trim(); LS.set('dp_tels',m); }
+const cmtEq=e=>{ const o=ordemEquipe(e).find(([t])=>t==='CMT'); return o?o[1]:null; };
+const telEq=e=>{ if((e.tel||'').trim()) return e.tel.trim(); const c=cmtEq(e); return (c&&c.mat&&telsMem()[c.mat])||''; };
+function fmtTel(t){ const d=soDig(t).replace(/^55(?=\d{10,11}$)/,''); if(d.length===11) return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`; if(d.length===10) return `(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`; return t; }
+const telIntl=t=>{ const d=soDig(t); return d.length>=12&&d.startsWith('55')?d:'55'+d; };
+const ICON_WA='💬';
+function botoesTel(t){ const d=soDig(t); if(d.length<10) return '';
+  return `<a class="tbt lig" href="tel:+${telIntl(t)}" target="_top">📞 Ligar</a><a class="tbt wa" href="https://wa.me/${telIntl(t)}" target="_blank" rel="noopener">${ICON_WA} WhatsApp</a>`; }
 const metaP=p=>[p.lotacao,p.mat&&!/^X\d/.test(p.mat)?p.mat:''].filter(Boolean).join(' · ');
 function ordemEquipe(e){ const c=ocup(e.id,'cmt'), m=temMot(e.tipo)?ocup(e.id,'mot'):null;
   return [c&&['CMT',c], m&&['MOT',m], ...pats(e.id).map(p=>['PAT',p])].filter(Boolean); }
@@ -750,7 +770,8 @@ function equipeAberta(e){
       ${e.salva&&idx>0?`<button class="mini" data-sobe="1" title="Subir">↑</button>`:''}${e.salva&&idx<S.equipes.length-1&&S.equipes[idx+1].salva?`<button class="mini" data-desce="1" title="Descer">↓</button>`:''}
       <button class="del" data-del="${e.id}" title="Apagar equipe">🗑</button></div>
     <div class="tf">${temVtr(e.tipo)?`<label class="vtrbox"><span>VTR</span><input data-f="vtr" value="${esc(e.vtr)}" placeholder="nº" autocomplete="off"></label>`:''}
-      <label class="locbox">📍<input data-f="setor" list="dlLoc" value="${esc(e.setor)}" placeholder="Local do policiamento" autocomplete="off"></label></div>
+      <label class="locbox">📍<input data-f="setor" list="dlLoc" value="${esc(e.setor)}" placeholder="Local do policiamento" autocomplete="off"></label>
+      <label class="telbox">📞<input data-f="tel" type="tel" inputmode="tel" value="${esc(telEq(e))}" placeholder="Telefone do comandante (com DDD)" autocomplete="off"></label></div>
     <div class="mlist">${linhas}
       <div class="nexthint">Toque num nome da lista → entra como <b>${NOMEF[pf]}</b>${o.length===1?'<br><span style="color:var(--warn)">mínimo de 2 policiais por equipe</span>':''}</div></div>
     <div id="tErr"></div>
@@ -837,7 +858,7 @@ $('#teams').addEventListener('click',e=>{
       const prox=S.equipes.find(x=>!x.salva&&!membros(x.id).length)||novaEquipe(); S.ativa=prox.id; salvar(); renderMontar(); };
     n?confirmar(`Apagar a ${rotulo(eq)}? Os ${n} policiais voltam para a lista.`,fz):fz(); }
 });
-$('#teams').addEventListener('input',e=>{ const f=e.target.dataset.f; if(f!=='vtr'&&f!=='setor') return;
+$('#teams').addEventListener('input',e=>{ const f=e.target.dataset.f; if(f==='tel'){ const eq=ativa(); eq.tel=e.target.value; const c=cmtEq(eq); if(c) lembrarTel(c.mat,eq.tel); salvar(); return; } if(f!=='vtr'&&f!=='setor') return;
   const eq=ativa(); eq[f]=f==='vtr'?e.target.value.toUpperCase():e.target.value; salvar(); });
 $('#teams').addEventListener('change',e=>{ if(e.target.dataset.f==='setor'){ lembrarLocal(e.target.value); $('#dlLoc').innerHTML=locais.map(l=>`<option value="${esc(l)}">`).join(''); } });
 $('#teams').addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.target.dataset.f){ e.target.blur(); } });
@@ -888,6 +909,7 @@ function cardFiscal(e){
     <div class="fh"><b>${esc(rotulo(e))}${e.tipo!=='VIATURA'?' · A PÉ':''}</b><span class="cnt">${o.length} PM</span></div>
     <div class="pt">📍 ${esc(atual||'Local não informado')}${r.length?`<small>Remanejada ${r.length}x · início: ${esc(pontoIni(e)||'—')}</small>`:''}</div>
     <div class="nomes">${esc(nomes)}</div>
+    ${(()=>{ const c=cmtEq(e), t=telEq(e); return `<div class="ftel"><span class="nm">CMT: ${c?esc(nomeP(c)):'—'}${t?' · '+esc(fmtTel(t)):''}</span>${t?botoesTel(t):'<input data-ftel="1" type="tel" inputmode="tel" placeholder="📞 Telefone do comandante (com DDD)">'}</div>`; })()}
     <div class="st ${f.length?'sim':'nao'}">${f.length?`✓ Fiscalizada ${f.length}x · última às ${hFmt(f[f.length-1].h)}`:'Ainda não fiscalizada'}</div>
     <div class="acts"><button class="btn save" data-fisc="1">✓ Fiscalizada</button><button class="btn lt" data-rem="1">🔁 Remanejar</button></div>
     ${hist?`<div class="hist">${hist}</div>`:''}
@@ -924,6 +946,8 @@ $('#aOk').onclick=()=>{
     toast(`✓ ${rotulo(e)} remanejada`); }
   else { e.hist.push({tipo:'fisc',h,obs:txt}); toast(`✓ ${rotulo(e)} fiscalizada às ${hFmt(h)}`); }
   salvar(); $('#mAcao').classList.add('hide'); acao=null; renderFiscal(); };
+$('#fBody').addEventListener('change',ev=>{ const i=ev.target.closest('[data-ftel]'); if(!i) return; const c=ev.target.closest('.fteam'), e=S.equipes.find(x=>x.id===c.dataset.eq);
+  if(soDig(i.value).length<10){ toast('Informe o telefone com DDD'); return; } e.tel=i.value.trim(); const cm=cmtEq(e); if(cm) lembrarTel(cm.mat,e.tel); salvar(); renderFiscal(); toast('✓ Telefone salvo'); });
 $('#fBody').addEventListener('click',ev=>{
   const c=ev.target.closest('.fteam'); if(!c) return; const e=S.equipes.find(x=>x.id===c.dataset.eq);
   if(ev.target.closest('[data-fisc]')) abrirAcao('fisc',e);
